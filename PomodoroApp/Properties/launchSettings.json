@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "PomodoroApp": {
+      "commandName": "Project",
+      "commandLineArgs": "start 25 5"
+    }
+  }
+}
