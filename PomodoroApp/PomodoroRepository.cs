@@ -34,16 +34,27 @@ namespace PomodoroApp
                         Id = interval.Id.ToString(),
                         StartTime = interval.StartTime,
                         EndTime = interval.EndTime,
-                        Type = (int)interval.Type
+                        Type = (int)interval.Type,
+                        Comment = interval.Comment
                     });
                 }
                 else
                 {
                     entity.EndTime = interval.EndTime;
+                    entity.Comment = interval.Comment;
                 }
 
                 dbContext.SaveChanges();
 
+            }
+        }
+
+        public IList<PomodoroSessionEntity> GetLastNSessions(int count)
+        {
+            using (var db = new PomodoroDbContext())
+            {
+                var sessions = db.Pomodoros.AsQueryable().OrderByDescending(m=> m.StartTime).Take(count);
+                return sessions.ToList();
             }
         }
     }

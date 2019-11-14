@@ -9,7 +9,12 @@
         Title="MainWindow" Height="211" Width="235">
     <Grid>
         <TextBlock x:Name="countDown" HorizontalAlignment="Center" Text="00:00" TextWrapping="Wrap" VerticalAlignment="Top" Foreground="#FFEEEEEE" FontSize="60" Margin="0,33,0,0" />
-        <Button x:Name="button" Content="Button" HorizontalAlignment="Left" Margin="46,137,0,0" VerticalAlignment="Top" Height="48" Width="51" Background="#FF111111" Foreground="#FFDAC3C3" FontSize="18"/>
+        <Button x:Name="actionButtonStart" Content="Start" HorizontalAlignment="Center" Margin="0,137,0,0" VerticalAlignment="Top" Height="30" Width="143" Background="#FF111111" Foreground="#FFF3F3F3" FontSize="18" Click="actionButtonStart_Click" BorderBrush="#FF212121"/>
+        <Button x:Name="actionButtonStop" Content="Stop" HorizontalAlignment="Center" Margin="0,137,0,0" VerticalAlignment="Top" Height="30" Width="143" Background="#FF111111" Foreground="#FFF3F3F3" FontSize="18" Click="actionButtonStop_Click" BorderBrush="#FF212121"/>
+
+        <TextBlock x:Name="intervalType" HorizontalAlignment="Left" Margin="86,18,0,0" Text="Work" TextWrapping="Wrap" VerticalAlignment="Top" Width="73" Foreground="#FFFFB7B7" FontSize="14" TextAlignment="Center"/>
+        <TextBlock x:Name="session" HorizontalAlignment="Left" Margin="46,18,0,0" Text="1/5" TextWrapping="Wrap" VerticalAlignment="Top" Width="45" Foreground="#FFFFB7B7" FontSize="14" TextAlignment="Center"/>
+        <Button x:Name="commentButton" Content="C" HorizontalAlignment="Left" Margin="153,14,0,0" VerticalAlignment="Top" Height="30" Width="36" Background="#FF111111" Foreground="#FFF3F3F3" FontSize="18" BorderBrush="#FF212121" Click="commentButton_Click"/>
 
     </Grid>
 </Window>

@@ -6,39 +6,33 @@ namespace PomodoroApp
 {
     public class IntervalTypeDetector
     {
-        static List<IntervalType> _types = new List<IntervalType>();
-
-        public IntervalType GetNext(IntervalType current)
+        public IntervalTypeDetector(PomodoroRepository pomodoroRepository)
         {
-            IntervalType next = IntervalType.None;
+            PomodoroRepository = pomodoroRepository;
+        }
 
-            var numberOfWorkIntervalsBeforeLongBreak = 5;
+        public PomodoroRepository PomodoroRepository { get; }
+
+        public IntervalType GetNext(IntervalType current, int numberOfWorkIntervalsBeforeLongBreak)
+        {
             var skip = numberOfWorkIntervalsBeforeLongBreak + (numberOfWorkIntervalsBeforeLongBreak - 1);
-            if (_types.Count >= skip)
+            var next = IntervalType.Work;
+            
+            var sessions = PomodoroRepository.GetLastNSessions(skip).ToList();
+            
+            //if there was no long-break and was exactly N work sessions, than is time to do long break
+            if (!sessions.Any(m => m.Type == (int)IntervalType.LongBreak) && sessions.Count(m => m.Type == (int)IntervalType.Work) >= numberOfWorkIntervalsBeforeLongBreak)
             {
-                var lastWorkItems = _types.GetRange(_types.Count() - skip, skip).Where(m => m == IntervalType.Work);
-                if (lastWorkItems.Count() == numberOfWorkIntervalsBeforeLongBreak)
-                {
-                    next = IntervalType.LongBreak;
-                }
+                next = IntervalType.LongBreak;
             }
-            if(next == IntervalType.None)
+            else
             {
-                switch (current)
+                if(current== IntervalType.Work)
                 {
-                    case IntervalType.Work:
-                        next = IntervalType.ShortBreak;
-                        break;
-                    case IntervalType.LongBreak:
-                    case IntervalType.ShortBreak:
-                        next = IntervalType.Work;
-                        break;
-                    default:
-                        throw new ArgumentException();
-                }
+                    next = IntervalType.ShortBreak;
+                }                
             }
 
-            _types.Add(next);
             return next;
         }
     }

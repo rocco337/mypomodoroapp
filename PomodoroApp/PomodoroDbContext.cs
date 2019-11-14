@@ -44,6 +44,7 @@ namespace PomodoroApp
         public DateTime? EndTime { get; set; }
 
         public int Type { get; set; }
+        public string Comment { get; set; }
 
     }
 }

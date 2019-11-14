@@ -1,15 +1,13 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PomodoroApp
 {
-    //todo - for each work in session add number, reset it after large break
-    //todo - autocontinue or requires user interaction to start new session
     //todo - list - from today?
-    //todo - add comment to work(like task)
+    //todo add notification
     public class PomodoroApp
     {
         /// <summary>
@@ -20,96 +18,119 @@ namespace PomodoroApp
         /// <summary>
         /// Count downs timer(work, short break, long break)
         /// </summary>
-        private DateTime? _timerCountDown;
+        //private DateTime? _timerCountDown;
+        private PomodoroInterval _interval;
 
-        private IntervalChangesListener _changesQueue;
+        private PomodoroRepository _repository = new PomodoroRepository();
 
-        private IntervalTypeDetector _intervalTypeDetector = new IntervalTypeDetector();
-        private int _updateIntervalMs = 500;
+        private IntervalTypeDetector _intervalTypeDetector = new IntervalTypeDetector(new PomodoroRepository());
+        private NextSessionIndexDetector _nextSessionIndexDetector = new NextSessionIndexDetector(new PomodoroRepository());
+
+        private int _updateIntervalMs = 100;
         private int _workIntervalDuration, _pauseIntervalDuration, _longPauseIntervalDuration;
 
 
-        private PomodoroInterval _interval;
-
         private Action<PomodoroInterval> _onTick;
+        private Action<PomodoroInterval, IntervalType> _onIntervalFinished;
 
-        public PomodoroApp(int workInterval, int shortPauseInterval, Action<PomodoroInterval> onTick)
+        private DateTime? _lastTickTime;
+        
+        public int NumberOfWorkIntervalsBeforeLongBreak => 5;
+
+        public PomodoroApp(int workInterval, int shortPauseInterval, Action<PomodoroInterval> onTick, Action<PomodoroInterval, IntervalType> onIntervalFinished)
         {
             this._workIntervalDuration = workInterval;
             this._pauseIntervalDuration = shortPauseInterval;
             this._longPauseIntervalDuration = shortPauseInterval * 3;
 
-            this._changesQueue = new IntervalChangesListener();
             this._onTick = onTick;
+            this._onIntervalFinished = onIntervalFinished;
         }
 
-        public void Start(IntervalType type = IntervalType.Work)
+        public void Start()
         {
             var callback = new TimerCallback(TimerCallback);
+            this._interval = SetNewInterval(null, IntervalType.Work);
             this._timer = new Timer(callback, null, 0, Timeout.Infinite);
         }
 
-        public void Stop()
+        public void Stop(PomodoroInterval interval)
         {
-            this._timer.Dispose();
-            this._interval.EndTime = DateTime.Now;
-            _changesQueue.Enqueue(this._interval);
-
-            this._interval = null;
+            CloseInterval(interval);
+            ClearTimer();
         }
 
-        private DateTime? LastTickTime;
         private void TimerCallback(object state)
         {
-            if (LastTickTime == null)
+            _lastTickTime = _lastTickTime ?? DateTime.Now;
+                        
+            if (_interval.CountDown.IsIntervalFinished())
             {
-                LastTickTime = DateTime.Now;
+                //close old interval
+                CloseInterval(_interval);
+
+                //has to be called after previous has finished
+                var nextInterval = _intervalTypeDetector.GetNext(_interval.Type, NumberOfWorkIntervalsBeforeLongBreak);
+                
+                //notify client that interval finished
+                _onIntervalFinished(_interval, nextInterval);
+
+                //if new work interval should start, break everything and wait until user manually starts it
+                if (nextInterval == IntervalType.Work)
+                {
+                    ClearTimer();
+                    return;
+                }
+                else
+                {
+                    _interval = SetNewInterval(_interval, nextInterval);                   
+                }
             }
-
-            if (this._interval == null)
-            {
-                this._interval = new PomodoroInterval(DateTime.Now, _intervalTypeDetector.GetNext(IntervalType.ShortBreak));
-                _changesQueue.Enqueue(this._interval);
-            }
-
-            if (_timerCountDown == null)
-            {
-                var intervalDuration = GetIntervalDuration(this._interval.Type);
-                this._timerCountDown = DateTimeExtensions.GetTimeInterval(intervalDuration);
-                this._interval.CurrentTime = this._timerCountDown.Value;
-            }
-
-            if (_timerCountDown.Value.IsIntervalFinished())
-            {
-                //start new interval
-                this._interval.EndTime = DateTime.Now;
-                _changesQueue.Enqueue(this._interval);
-
-                this._interval = new PomodoroInterval(DateTime.Now, _intervalTypeDetector.GetNext(this._interval.Type));
-                _changesQueue.Enqueue(this._interval);
-
-                var intervalDuration = GetIntervalDuration(this._interval.Type);
-                this._timerCountDown = DateTimeExtensions.GetTimeInterval(intervalDuration);
-            }
-            else
-            {
-                _timerCountDown = _timerCountDown.Value.AddMilliseconds(-(DateTime.Now - LastTickTime.Value).TotalMilliseconds);
-                this._interval.CurrentTime = _timerCountDown.Value;
+            else {
+                _interval.CountDown = _interval.CountDown.AddMilliseconds(-(DateTime.Now - _lastTickTime.Value).TotalMilliseconds);            
             }
 
             //notify subscribers
-            this._onTick(this._interval);
-            this._timer.Change(_updateIntervalMs, Timeout.Infinite);
-            LastTickTime = DateTime.Now;
+            _onTick(_interval);
+            
+            _timer.Change(_updateIntervalMs, Timeout.Infinite);
+            _lastTickTime = DateTime.Now;
         }
-        
-        private int GetIntervalDuration(IntervalType? intervalType = null)
+
+        private PomodoroInterval SetNewInterval(PomodoroInterval currentInterval, IntervalType nextInterval)
         {
-            if (intervalType == null)
+            int nextSessionIndex;
+
+            if (currentInterval != null && nextInterval != IntervalType.Work)
             {
-                return _workIntervalDuration;
+                nextSessionIndex = currentInterval.SessionIndex;
+            }
+            else
+            {
+                nextSessionIndex = _nextSessionIndexDetector.GetNextSessionIndex(this.NumberOfWorkIntervalsBeforeLongBreak);                
             }
 
+            var interval = new PomodoroInterval(DateTime.Now, nextInterval, nextSessionIndex);
+            interval.CountDown = DateTimeExtensions.GetTimeInterval(GetIntervalDuration(nextInterval));
+
+            _repository.SaveOrUpdate(interval);
+            return interval;
+        }
+
+        private void CloseInterval(PomodoroInterval interval)
+        {
+            interval.EndTime = DateTime.Now;
+            _repository.SaveOrUpdate(interval);
+        }
+
+        private void ClearTimer()
+        {
+            this._timer.Dispose();
+            this._lastTickTime = null;
+        }
+
+        private int GetIntervalDuration(IntervalType intervalType)
+        {
             switch (intervalType)
             {
                 case IntervalType.Work:
@@ -122,13 +143,14 @@ namespace PomodoroApp
                     throw new ArgumentException();
             }
         }
-
     }
 
     public static class DateTimeExtensions
     {
         public static DateTime GetTimeInterval(int intervalMinutes)
         {
+            //return new DateTime(1, 1, 1, 0, 0, 3, 0);
+
             return new DateTime(1, 1, 1, 0, intervalMinutes, 0, 0);
         }
 
@@ -138,44 +160,11 @@ namespace PomodoroApp
         }
     }
 
-    public class PomodoroInterval
-    {
-        public Guid Id = Guid.NewGuid();
-        public DateTime StartTime { get; }
-        public DateTime? EndTime { get; set; }
-        public IntervalType Type { get; }
-        public DateTime CurrentTime { get; set; }
-
-        public PomodoroInterval(DateTime startTime, IntervalType type)
-        {
-            StartTime = startTime;
-            Type = type;
-        }
-    }
-
     public enum IntervalType
     {
         None,
         Work,
         ShortBreak,
         LongBreak,
-        End
-    }
-
-    public class IntervalChangesListener
-    {
-        private PomodoroRepository _repository = new PomodoroRepository();
-
-        private Queue<PomodoroInterval> _queue = new Queue<PomodoroInterval>();
-
-        public IntervalChangesListener()
-        {
-        }
-
-        public void Enqueue(PomodoroInterval item)
-        {
-            _queue.Enqueue(item);
-            _repository.SaveOrUpdate(item);
-        }
     }
 }

@@ -16,11 +16,11 @@ namespace PomodoroApp
                 Console.Clear();
                 Console.CursorVisible = false;
 
-                var pomodoro = new PomodoroApp(workInterval, pauseInterval, (interval)=>
+                var pomodoro = new PomodoroApp(workInterval, pauseInterval, (interval) =>
                 {
-                    Console.WriteLine($"Time left({interval.Type}): { interval.CurrentTime.ToString("mm:ss")}");
+                    Console.WriteLine($"Time left({interval.Type}): { interval.CountDown.ToString("mm:ss")}");
                     Console.SetCursorPosition(0, 0);
-                });
+                }, (interval, nextIntervalType) =>{ });
 
                 pomodoro.Start();
 
@@ -30,7 +30,7 @@ namespace PomodoroApp
             {
                 foreach(var session in new PomodoroRepository().GetSessions())
                 {
-                    Console.WriteLine($"{session.Id}, {session.StartTime.ToShortDateString()} {session.StartTime.ToShortTimeString()} -  {session.EndTime?.ToShortTimeString()}, {((IntervalType)session.Type).ToString()}");
+                    Console.WriteLine($"{session.Id}, {session.StartTime.ToShortDateString()} {session.StartTime.ToShortTimeString()} -  {session.EndTime?.ToShortTimeString()}, {((IntervalType)session.Type).ToString()}, {session.Comment}");
                 }
                 Console.ReadLine();
             }
